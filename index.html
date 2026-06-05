@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>色彩大對決</title>
+    <link rel="stylesheet" href="style.css">
+    
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+</head>
+<body>
+
+    <div id="game-container">
+        <h1>🎨 色彩大對決</h1>
+
+        <div class="control-panel">
+            <button onclick="changeGridSize(5)">5 x 5</button>
+            <button onclick="changeGridSize(7)">7 x 7</button>
+            <button onclick="changeGridSize(9)">9 x 9</button>
+            <hr style="border: 1px solid #333; margin: 10px 0;">
+            <button onclick="changeRole('host')" style="background-color: #a2b;">切換成房主 👑</button>
+            <button onclick="changeRole('player')" style="background-color: #2b8;">切換成成員 👥</button>
+        </div>
+
+        <div class="target-section">
+            <p>房主指定的顏色：</p>
+            <div id="target-color-box"></div>
+        </div>
+
+        <div id="grid-container"></div>
+    </div>
+
+    <script>
+        // 你的真實雲端金鑰
+        const firebaseConfig = {
+            apiKey: "AIzaSyANNvPxSkflpr2RMme_fb5vhXRo2YFb4u8",
+            authDomain: "color-battle-game-3c9eb.firebaseapp.com",
+            projectId: "color-battle-game-3c9eb",
+            storageBucket: "color-battle-game-3c9eb.firebasestorage.app",
+            messagingSenderId: "669256493534",
+            appId: "1:669256493534:web:2705da83d21fc03f36154f",
+            measurementId: "G-Q9W172JF6H"
+        };
+
+        // 初始化 Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const roomRef = db.collection("rooms").doc("room_888");
+
+        const colorPalette = [
+            '#FF5733', '#33FF57', '#3357FF', '#F3FF33', '#FF33F3', 
+            '#33FFF0', '#FFA500', '#8A2BE2', '#00FF7F', '#FF1493'
+        ];
+
+        window.gameState = {
+            role: 'host',       
+            size: 5,            
+            colorMap: [],       
+            targetColor: '#ccc' 
+        };
+
+        window.changeRole = function(newRole) {
+            window.gameState.role = newRole;
+            alert(`你目前的身分已切換為：${newRole === 'host' ? '👑 房主' : '👥 房間成員'}`);
+            renderGame();
+        };
+
+        function generateColors(size) {
+            let newColorMap = [];
+            for (let i = 0; i < size * size; i++) {
+                newColorMap.push(colorPalette[Math.floor(Math.random() * colorPalette.length)]);
+            }
+            return newColorMap;
+        }
+
+        window.changeGridSize = function(size) {
+            if (window.gameState.role !== 'host') {
+                alert("只有房主可以切換格子大小喔！");
+                return;
+            }
+            const newColorMap = generateColors(size);
+            roomRef.set({
+                size: size,
+                colorMap: newColorMap,
+                targetColor: '#ccc'
+            }).catch(err => console.error("上傳失敗：", err));
+        };
+
+        function renderGame() {
+            const gridContainer = document.getElementById('grid-container');
+            if(!gridContainer) return;
+            gridContainer.innerHTML = ''; 
+
+            const size = window.gameState.size;
+            gridContainer.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
+            gridContainer.style.gridTemplateRows = `repeat(${size}, 1fr)`;
+
+            if (!window.gameState.colorMap || window.gameState.colorMap.length === 0) return;
+
+            window.gameState.colorMap.forEach((color, index) => {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.style.backgroundColor = color;
+
+                cell.addEventListener('click', () => {
+                    if (window.gameState.role === 'host') {
+                        roomRef.update({ targetColor: color });
+                    } else {
+                        if (color === window.gameState.targetColor) {
+                            alert("🎉 太強了！你按對顏色了！");
+                        }
+                    }
+                });
+
+                gridContainer.appendChild(cell);
+            });
+
+            document.getElementById('target-color-box').style.backgroundColor = window.gameState.targetColor;
+        }
+
+        // 監聽雲端資料庫
+        roomRef.onSnapshot((snapshot) => {
+            if (snapshot.exists) {
+                const data = snapshot.data();
+                window.gameState.size = data.size;
+                window.gameState.colorMap = data.colorMap;
+                window.gameState.targetColor = data.targetColor;
+                renderGame(); 
+            } else {
+                // 如果是新資料庫空空如也，房主身分自動初始化一個 5x5
+                if (window.gameState.role === 'host') {
+                    window.changeGridSize(5);
+                }
+            }
+        }, (error) => {
+            console.error("監聽失敗，通常是 Rules 沒設好：", error);
+        });
+    </script>
+</body>
+</html>

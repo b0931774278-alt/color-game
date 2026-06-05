@@ -1,0 +1,77 @@
+/* 基本手機版型重設，防止滑動與縮放 */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: #121212;
+    color: #ffffff;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+#game-container {
+    width: 100%;
+    max-width: 450px; /* 限制最大寬度，完美符合 iPhone 尺寸 */
+    padding: 20px;
+    box-sizing: border-box;
+    text-align: center;
+}
+
+/* 控制按鈕樣式 */
+.control-panel button {
+    background-color: #333;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    margin: 5px;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.control-panel button:active {
+    background-color: #555;
+}
+
+/* 顯示房主指定顏色的區塊 */
+.target-section {
+    margin: 20px 0;
+}
+
+#target-color-box {
+    width: 60px;
+    height: 60px;
+    margin: 10px auto;
+    border-radius: 12px;
+    border: 3px solid #fff;
+    background-color: #ccc; /* 預設灰色 */
+}
+
+/* 核心：遊戲網格容器 */
+#grid-container {
+    display: grid;
+    gap: 6px; /* 格子與格子的間距 */
+    width: 100%;
+    aspect-ratio: 1 / 1; /* 讓整個網格保持正方形 */
+    background-color: #1e1e1e;
+    padding: 10px;
+    border-radius: 16px;
+    box-sizing: border-box;
+}
+
+/* 單個小格子的樣式 */
+.cell {
+    width: 100%;
+    height: 100%;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: transform 0.1s;
+}
+
+/* 手機點擊時的微幅縮放動畫 */
+.cell:active {
+    transform: scale(0.9);
+}
