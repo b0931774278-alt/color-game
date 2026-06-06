@@ -9,7 +9,6 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
 
     <style>
-        /* 全域基本樣式：科技感黑底 */
         body {
             margin: 0;
             padding: 0;
@@ -23,10 +22,9 @@
             box-sizing: border-box;
         }
 
-        /* 遊戲主容器：限制電腦版最大寬度，手機版則自動延伸 */
         #game-container {
             width: 100%;
-            max-width: 500px; /* 電腦螢幕上最大就這麼大，維持置中精緻感 */
+            max-width: 500px; 
             padding: 16px;
             box-sizing: border-box;
             display: flex;
@@ -40,8 +38,18 @@
             text-align: center;
         }
 
-        /* 控制面板按鈕優化 */
+        .room-info {
+            font-size: 14px;
+            color: #aaa;
+            margin-bottom: 10px;
+            background-color: #222;
+            padding: 6px 12px;
+            border-radius: 20px;
+        }
+
+        /* 房主控制面板（預設隱藏，只有房主網址才會開啟） */
         .control-panel {
+            display: none; 
             width: 100%;
             background-color: #1e1e1e;
             padding: 12px;
@@ -49,6 +57,7 @@
             margin-bottom: 15px;
             box-sizing: border-box;
             text-align: center;
+            border: 1px solid #a2b;
         }
 
         button {
@@ -67,7 +76,6 @@
             transform: scale(0.95);
         }
 
-        /* 房主指定的顏色顯示區 */
         .target-section {
             display: flex;
             align-items: center;
@@ -85,12 +93,11 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
 
-        /* 🔥 【核心縮放邏輯】遊戲大網格 */
         #grid-container {
             display: grid;
-            gap: 8px; /* 格子與格子的間距，大螢幕小螢幕都好看 */
-            width: 100%; /* 隨時吃滿外部容器的寬度 */
-            aspect-ratio: 1 / 1; /* 😱 神級屬性：強制寬高比 1:1，寬度變大，高度就自動變大！ */
+            gap: 8px; 
+            width: 100%; 
+            aspect-ratio: 1 / 1; 
             background-color: #1e1e1e;
             padding: 12px;
             border-radius: 16px;
@@ -98,18 +105,37 @@
             box-shadow: 0 8px 24px rgba(0,0,0,0.5);
         }
 
-        /* 網格內的小格子 */
         .cell {
-            border-radius: 8px; /* 圓角讓視覺更溫潤 */
+            border-radius: 8px; 
             cursor: pointer;
             transition: transform 0.1s, filter 0.1s;
             box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
         }
 
-        /* 點擊格子的精緻視覺反饋（會縮小一丁點，表示按到了） */
         .cell:active {
             transform: scale(0.92);
             filter: brightness(0.8);
+        }
+
+        /* 大廳引導區樣式 */
+        .lobby-panel {
+            width: 100%;
+            background-color: #1e1e1e;
+            padding: 20px;
+            border-radius: 16px;
+            text-align: center;
+            box-sizing: border-box;
+        }
+        .lobby-input {
+            width: 80%;
+            padding: 10px;
+            font-size: 16px;
+            border-radius: 8px;
+            border: 1px solid #444;
+            background-color: #121212;
+            color: white;
+            text-align: center;
+            margin-bottom: 15px;
         }
     </style>
 </head>
@@ -117,22 +143,31 @@
 
     <div id="game-container">
         <h1>🎨 色彩大對決</h1>
+        <div id="room-display" class="room-info" style="display: none;"></div>
 
-        <div class="control-panel">
-            <button onclick="changeGridSize(5)">5 x 5</button>
-            <button onclick="changeGridSize(7)">7 x 7</button>
-            <button onclick="changeGridSize(9)">9 x 9</button>
-            <hr style="border: 0; height: 1px; background: #333; margin: 10px 0;">
-            <button onclick="changeRole('host')" style="background-color: #a2b;">切換成房主 👑</button>
-            <button onclick="changeRole('player')" style="background-color: #2b8;">切換成成員 👥</button>
+        <div id="lobby-section" class="lobby-panel">
+            <p>請輸入要加入的房間號碼：</p>
+            <input type="number" id="room-input" class="lobby-input" placeholder="例如: 888" min="1"><br>
+            <button onclick="joinAsPlayer()" style="background-color: #2b8; padding: 12px 24px;">👥 進入房間（成員）</button>
+            <p style="color: #666; font-size: 12px; margin-top: 15px;">如果你是房主，請直接點擊下方：</p>
+            <button onclick="createAsHost()" style="background-color: #a2b; font-size: 12px;">👑 建立新房間（房主）</button>
         </div>
 
-        <div class="target-section">
-            <span>目標顏色：</span>
-            <div id="target-color-box"></div>
-        </div>
+        <div id="battle-section" style="display: none; width: 100%; flex-direction: column; align-items: center;">
+            <div id="host-panel" class="control-panel">
+                <span style="color: #a2b; font-weight: bold; display: block; margin-bottom: 5px;">👑 房主控制台</span>
+                <button onclick="changeGridSize(5)">5 x 5</button>
+                <button onclick="changeGridSize(7)">7 x 7</button>
+                <button onclick="changeGridSize(9)">9 x 9</button>
+            </div>
 
-        <div id="grid-container"></div>
+            <div class="target-section">
+                <span>目標顏色：</span>
+                <div id="target-color-box"></div>
+            </div>
+
+            <div id="grid-container"></div>
+        </div>
     </div>
 
     <script>
@@ -148,25 +183,66 @@
 
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
-        const roomRef = db.collection("rooms").doc("room_888");
-
+        
+        let roomRef = null;
         const colorPalette = [
             '#FF5733', '#33FF57', '#3357FF', '#F3FF33', '#FF33F3', 
             '#33FFF0', '#FFA500', '#8A2BE2', '#00FF7F', '#FF1493'
         ];
 
+        // 核心狀態
         window.gameState = {
-            role: 'host',       
+            role: 'player', // 預設進來是成員
+            roomId: '',
             size: 5,            
             colorMap: [],       
             targetColor: '#ccc' 
         };
 
-        window.changeRole = function(newRole) {
-            window.gameState.role = newRole;
-            alert(`你目前的身分已切換為：${newRole === 'host' ? '👑 房主' : '👥 房間成員'}`);
-            renderGame();
+        // 【大廳功能】房主建立房間
+        window.createAsHost = function() {
+            const randomRoom = Math.floor(Math.random() * 900) + 100; // 隨機生出 100~999 號碼
+            // 跳轉網址加上 ?room=號碼&role=host
+            window.location.href = window.location.pathname + `?room=${randomRoom}&role=host`;
         };
+
+        // 【大廳功能】成員輸入號碼加入房間
+        window.joinAsPlayer = function() {
+            const num = document.getElementById('room-input').value;
+            if(!num) { alert('請輸入房間號碼！'); return; }
+            // 跳轉網址只帶 ?room=號碼
+            window.location.href = window.location.pathname + `?room=${num}`;
+        };
+
+        // 🔍 【網址分析器】一進網頁立刻判斷去哪裡
+        function initRoomCheck() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomParam = urlParams.get('room');
+            const roleParam = urlParams.get('role');
+
+            if (roomParam) {
+                // 有帶房間號碼，開打！
+                window.gameState.roomId = roomParam;
+                
+                // 只有網址指名 role=host 才是房主，其餘一網打盡全是 player
+                if (roleParam === 'host') {
+                    window.gameState.role = 'host';
+                    document.getElementById('host-panel').style.display = 'block'; // 秀出控制台
+                }
+
+                // UI 切換
+                document.getElementById('lobby-section').style.display = 'none';
+                document.getElementById('battle-section').style.display = 'flex';
+                
+                const roomDisplay = document.getElementById('room-display');
+                roomDisplay.innerText = `房間號碼：${roomParam} (${window.gameState.role === 'host' ? '👑 房主' : '👥 成員'})`;
+                roomDisplay.style.display = 'block';
+
+                // 連線到對應的 Firebase 房間節點
+                roomRef = db.collection("rooms").doc(`room_${roomParam}`);
+                startListening();
+            }
+        }
 
         function generateColors(size) {
             let newColorMap = [];
@@ -177,16 +253,13 @@
         }
 
         window.changeGridSize = function(size) {
-            if (window.gameState.role !== 'host') {
-                alert("只有房主可以切換格子大小喔！");
-                return;
-            }
+            if (window.gameState.role !== 'host') return;
             const newColorMap = generateColors(size);
             roomRef.set({
                 size: size,
                 colorMap: newColorMap,
                 targetColor: '#ccc'
-            }).catch(err => console.error("上傳失敗：", err));
+            });
         };
 
         function renderGame() {
@@ -221,21 +294,27 @@
             document.getElementById('target-color-box').style.backgroundColor = window.gameState.targetColor;
         }
 
-        roomRef.onSnapshot((snapshot) => {
-            if (snapshot.exists) {
-                const data = snapshot.data();
-                window.gameState.size = data.size;
-                window.gameState.colorMap = data.colorMap;
-                window.gameState.targetColor = data.targetColor;
-                renderGame(); 
-            } else {
-                if (window.gameState.role === 'host') {
-                    window.changeGridSize(5);
+        function startListening() {
+            roomRef.onSnapshot((snapshot) => {
+                if (snapshot.exists) {
+                    const data = snapshot.data();
+                    window.gameState.size = data.size;
+                    window.gameState.colorMap = data.colorMap;
+                    window.gameState.targetColor = data.targetColor;
+                    renderGame(); 
+                } else {
+                    if (window.gameState.role === 'host') {
+                        window.changeGridSize(5);
+                    }
                 }
-            }
-        }, (error) => {
-            console.error("監聽失敗：", error);
-        });
+            });
+        }
+
+        // 執行網址檢查
+        initRoomCheck();
+    </script>
+</body>
+</html>
     </script>
 </body>
 </html>
