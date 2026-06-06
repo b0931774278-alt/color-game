@@ -2,12 +2,116 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>色彩大對決</title>
-    <link rel="stylesheet" href="style.css">
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        /* 全域基本樣式：科技感黑底 */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #121212;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        /* 遊戲主容器：限制電腦版最大寬度，手機版則自動延伸 */
+        #game-container {
+            width: 100%;
+            max-width: 500px; /* 電腦螢幕上最大就這麼大，維持置中精緻感 */
+            padding: 16px;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        /* 控制面板按鈕優化 */
+        .control-panel {
+            width: 100%;
+            background-color: #1e1e1e;
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 15px;
+            box-sizing: border-box;
+            text-align: center;
+        }
+
+        button {
+            background-color: #333;
+            color: white;
+            border: none;
+            padding: 8px 14px;
+            margin: 4px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:active {
+            transform: scale(0.95);
+        }
+
+        /* 房主指定的顏色顯示區 */
+        .target-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        #target-color-box {
+            width: 45px;
+            height: 45px;
+            border-radius: 10px;
+            border: 2px solid #fff;
+            background-color: #ccc;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        /* 🔥 【核心縮放邏輯】遊戲大網格 */
+        #grid-container {
+            display: grid;
+            gap: 8px; /* 格子與格子的間距，大螢幕小螢幕都好看 */
+            width: 100%; /* 隨時吃滿外部容器的寬度 */
+            aspect-ratio: 1 / 1; /* 😱 神級屬性：強制寬高比 1:1，寬度變大，高度就自動變大！ */
+            background-color: #1e1e1e;
+            padding: 12px;
+            border-radius: 16px;
+            box-sizing: border-box;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+        }
+
+        /* 網格內的小格子 */
+        .cell {
+            border-radius: 8px; /* 圓角讓視覺更溫潤 */
+            cursor: pointer;
+            transition: transform 0.1s, filter 0.1s;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+        }
+
+        /* 點擊格子的精緻視覺反饋（會縮小一丁點，表示按到了） */
+        .cell:active {
+            transform: scale(0.92);
+            filter: brightness(0.8);
+        }
+    </style>
 </head>
 <body>
 
@@ -18,13 +122,13 @@
             <button onclick="changeGridSize(5)">5 x 5</button>
             <button onclick="changeGridSize(7)">7 x 7</button>
             <button onclick="changeGridSize(9)">9 x 9</button>
-            <hr style="border: 1px solid #333; margin: 10px 0;">
+            <hr style="border: 0; height: 1px; background: #333; margin: 10px 0;">
             <button onclick="changeRole('host')" style="background-color: #a2b;">切換成房主 👑</button>
             <button onclick="changeRole('player')" style="background-color: #2b8;">切換成成員 👥</button>
         </div>
 
         <div class="target-section">
-            <p>房主指定的顏色：</p>
+            <span>目標顏色：</span>
             <div id="target-color-box"></div>
         </div>
 
@@ -32,7 +136,6 @@
     </div>
 
     <script>
-        // 你的真實雲端金鑰
         const firebaseConfig = {
             apiKey: "AIzaSyANNvPxSkflpr2RMme_fb5vhXRo2YFb4u8",
             authDomain: "color-battle-game-3c9eb.firebaseapp.com",
@@ -43,7 +146,6 @@
             measurementId: "G-Q9W172JF6H"
         };
 
-        // 初始化 Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         const roomRef = db.collection("rooms").doc("room_888");
@@ -119,7 +221,6 @@
             document.getElementById('target-color-box').style.backgroundColor = window.gameState.targetColor;
         }
 
-        // 監聽雲端資料庫
         roomRef.onSnapshot((snapshot) => {
             if (snapshot.exists) {
                 const data = snapshot.data();
@@ -128,13 +229,12 @@
                 window.gameState.targetColor = data.targetColor;
                 renderGame(); 
             } else {
-                // 如果是新資料庫空空如也，房主身分自動初始化一個 5x5
                 if (window.gameState.role === 'host') {
                     window.changeGridSize(5);
                 }
             }
         }, (error) => {
-            console.error("監聽失敗，通常是 Rules 沒設好：", error);
+            console.error("監聽失敗：", error);
         });
     </script>
 </body>
