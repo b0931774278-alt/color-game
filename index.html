@@ -180,16 +180,9 @@
             measurementId: "G-Q9W172JF6H"
         };
 
-        // 初始化 Firebase
+        // 1. 初始化 Firebase（移除了所有會讓手機瀏覽器卡死的本機設定指令）
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
-        
-        // ✨【終極核心 Bug 修復點】：
-        // 拋棄會卡死網頁的 db.settings，直接調用官方標準的 clearPersistence() 
-        // 這會直接清空所有舊的手機本機暫存快取，強迫它每次開網頁都去跟雲端抓最新顏色！
-        db.clearPersistence().catch((err) => {
-            console.log("快取清除或已被停用：", err.code);
-        });
         
         let roomRef = null;
         let lastRenderedSize = 0; 
@@ -254,17 +247,20 @@
         window.changeGridSize = function(size) {
             if (window.gameState.role !== 'host') return;
             const newColorMap = generateColors(size);
+            
+            // 💡【新核心機制】：上傳時順便帶一個精準到毫秒的時間戳記 (updatedAt)
+            // 這樣每次房主點擊，資料內容必定會發生實質改變，強迫所有手機立刻跟雲端對齊
             roomRef.set({
                 size: size,
                 colorMap: newColorMap,
-                targetColor: '#ccc'
+                targetColor: '#ccc',
+                updatedAt: Date.now() 
             }).catch(err => console.error("上傳失敗：", err));
         };
 
         function renderGridStructure() {
             const size = window.gameState.size;
             
-            // 地圖大小沒變就絕不重畫 HTML（百人流暢關鍵）
             if (size === lastRenderedSize && document.getElementsByClassName('cell').length > 0) return;
             
             lastRenderedSize = size;
@@ -280,43 +276,4 @@
             window.gameState.colorMap.forEach((color) => {
                 const cell = document.createElement('div');
                 cell.className = 'cell';
-                cell.style.backgroundColor = color;
-
-                cell.addEventListener('click', () => {
-                    if (window.gameState.role === 'host') {
-                        roomRef.update({ targetColor: color });
-                    } else {
-                        if (color === window.gameState.targetColor) {
-                            alert("🎉 太強了！你按對顏色了！");
-                        }
-                    }
-                });
-
-                gridContainer.appendChild(cell);
-            });
-        }
-
-        function startListening() {
-            roomRef.onSnapshot((snapshot) => {
-                if (snapshot.exists) {
-                    const data = snapshot.data();
-                    window.gameState.size = data.size;
-                    window.gameState.colorMap = data.colorMap;
-                    window.gameState.targetColor = data.targetColor;
-                    
-                    renderGridStructure(); 
-                    document.getElementById('target-color-box').style.backgroundColor = window.gameState.targetColor;
-                } else {
-                    if (window.gameState.role === 'host') {
-                        window.changeGridSize(5);
-                    }
-                }
-            }, (error) => {
-                console.error("監聽失敗：", error);
-            });
-        }
-
-        initRoomCheck();
-    </script>
-</body>
-</html>
+                cell.style.backgroundColor = color
