@@ -24,8 +24,9 @@
 
         #game-container {
             width: 100%;
-            max-width: 500px; 
-            padding: 16px;
+            /* ⚡ 這裡拉大最大寬度，讓大螢幕也能有大格局 */
+            max-width: 800px; 
+            padding: 12px;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
@@ -33,15 +34,15 @@
         }
 
         h1 {
-            font-size: 24px;
-            margin: 10px 0;
+            font-size: 26px;
+            margin: 8px 0;
             text-align: center;
         }
 
         .room-info {
             font-size: 14px;
             color: #aaa;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             background-color: #222;
             padding: 6px 12px;
             border-radius: 20px;
@@ -53,7 +54,7 @@
             background-color: #1e1e1e;
             padding: 12px;
             border-radius: 12px;
-            margin-bottom: 15px;
+            margin-bottom: 12px;
             box-sizing: border-box;
             text-align: center;
             border: 1px solid #a2b;
@@ -63,10 +64,10 @@
             background-color: #333;
             color: white;
             border: none;
-            padding: 8px 14px;
+            padding: 10px 16px;
             margin: 4px;
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 15px;
             font-weight: bold;
             cursor: pointer;
             transition: background-color 0.2s;
@@ -78,14 +79,15 @@
         .target-section {
             display: flex;
             align-items: center;
-            gap: 10px;
-            margin-bottom: 15px;
-            font-size: 16px;
+            gap: 12px;
+            margin-bottom: 12px;
+            font-size: 18px;
+            font-weight: bold;
         }
 
         #target-color-box {
-            width: 45px;
-            height: 45px;
+            width: 50px;
+            height: 50px;
             border-radius: 10px;
             border: 2px solid #fff;
             background-color: #ccc;
@@ -93,32 +95,35 @@
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
 
+        /* ⚡ 這是最關鍵的大改動位置！ */
         #grid-container {
             display: grid;
-            gap: 8px; 
+            gap: 6px;             /* 稍微縮小格子間距，把空間留給格子本身 */
             width: 100%; 
-            aspect-ratio: 1 / 1; 
+            max-width: 650px;     /* 電腦畫面的上限拉大 */
+            aspect-ratio: 1 / 1;  /* 嚴格保持正方形 */
             background-color: #1e1e1e;
-            padding: 12px;
+            padding: 8px;         /* 縮小內邊距，格子可以變得更大 */
             border-radius: 16px;
             box-sizing: border-box;
             box-shadow: 0 8px 24px rgba(0,0,0,0.5);
         }
 
         .cell {
-            border-radius: 8px; 
+            border-radius: 10px;  /* 圓角稍微加大，大格子看起來質感更好 */
             cursor: pointer;
             transition: transform 0.05s;
-            box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
+            box-shadow: inset 0 0 8px rgba(0,0,0,0.2);
         }
 
         .cell:active {
-            transform: scale(0.92);
+            transform: scale(0.94);
             filter: brightness(0.8);
         }
 
         .lobby-panel {
             width: 100%;
+            max-width: 450px;
             background-color: #1e1e1e;
             padding: 20px;
             border-radius: 16px;
@@ -201,7 +206,6 @@
             targetColor: '#ccc' 
         };
 
-        // 統一進入房間的跳轉邏輯
         window.enterRoom = function(chosenRole) {
             const num = document.getElementById('room-input').value;
             if(!num) { alert('請輸入房間號碼！'); return; }
@@ -222,13 +226,11 @@
                 window.gameState.roomId = roomParam;
                 roomRef = db.collection("rooms").doc(`room_${roomParam}`);
 
-                // 👑 只有網址指名 host 的人才擁有房主權限
                 if (roleParam === 'host') {
                     window.gameState.role = 'host';
                     document.getElementById('host-panel').style.display = 'block'; 
                 }
 
-                // 切換大廳與戰場 UI
                 document.getElementById('lobby-section').style.display = 'none';
                 document.getElementById('battle-section').style.display = 'flex';
                 
@@ -236,11 +238,9 @@
                 roomDisplay.innerText = `房間號碼：${roomParam} (${window.gameState.role === 'host' ? '👑 房主' : '👥 成員'})`;
                 roomDisplay.style.display = 'block';
 
-                // ✨【終極穩定點】：進來時，不論是誰，先用 safe-merge 確保雲端絕對有這個基礎欄位，絕對不卡死！
                 roomRef.set({
                     roomId: roomParam
                 }, { merge: true }).then(() => {
-                    // 確保欄位初始化存在後，才開始監聽，徹底擺脫安全規則拒絕存取的 Bug！
                     startListening();
                 });
             }
@@ -308,13 +308,11 @@
                 if (snapshot.exists) {
                     const data = snapshot.data();
                     
-                    // 如果這是一個全新建立的空房間，且我是房主，主動幫它塞預設 5x5 地圖
                     if (data.size === undefined && window.gameState.role === 'host') {
                         window.changeGridSize(5);
                         return;
                     }
 
-                    // 如果資料齊全，渲染遊戲
                     if (data.size && data.colorMap) {
                         window.gameState.size = data.size;
                         window.gameState.colorMap = data.colorMap;
