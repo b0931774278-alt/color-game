@@ -145,11 +145,12 @@
         <div id="room-display" class="room-info" style="display: none;"></div>
 
         <div id="lobby-section" class="lobby-panel">
-            <p>請輸入要加入的房間號碼：</p>
-            <input type="number" id="room-input" class="lobby-input" placeholder="例如: 888" min="1"><br>
-            <button onclick="joinAsPlayer()" style="background-color: #2b8; padding: 12px 24px;">👥 進入房間（成員）</button>
-            <p style="color: #666; font-size: 12px; margin-top: 15px;">如果你是房主，請直接點擊下方：</p>
-            <button onclick="createAsHost()" style="background-color: #a2b; font-size: 12px;">👑 建立新房間（房主）</button>
+            <p>請輸入房間號碼（例如: 1）：</p>
+            <input type="number" id="room-input" class="lobby-input" placeholder="房號數字" min="1" value="1"><br>
+            
+            <button onclick="enterRoom('host')" style="background-color: #a2b; padding: 12px 16px; margin-bottom: 10px; width: 85%;">👑 我是房主（建立/控制房間）</button>
+            <br>
+            <button onclick="enterRoom('player')" style="background-color: #2b8; padding: 12px 16px; width: 85%;">👥 我是成員（加入房間對決）</button>
         </div>
 
         <div id="battle-section" style="display: none; width: 100%; flex-direction: column; align-items: center;">
@@ -180,7 +181,7 @@
             measurementId: "G-Q9W172JF6H"
         };
 
-        // 1. 初始化 Firebase（移除了所有會讓手機瀏覽器卡死的本機設定指令）
+        // 初始化 Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         
@@ -200,15 +201,16 @@
             targetColor: '#ccc' 
         };
 
-        window.createAsHost = function() {
-            const randomRoom = Math.floor(Math.random() * 900) + 100; 
-            window.location.href = window.location.pathname + `?room=${randomRoom}&role=host`;
-        };
-
-        window.joinAsPlayer = function() {
+        // 統一進入房間的跳轉邏輯
+        window.enterRoom = function(chosenRole) {
             const num = document.getElementById('room-input').value;
             if(!num) { alert('請輸入房間號碼！'); return; }
-            window.location.href = window.location.pathname + `?room=${num}`;
+            
+            if (chosenRole === 'host') {
+                window.location.href = window.location.pathname + `?room=${num}&role=host`;
+            } else {
+                window.location.href = window.location.pathname + `?room=${num}`;
+            }
         };
 
         function initRoomCheck() {
@@ -218,12 +220,15 @@
 
             if (roomParam) {
                 window.gameState.roomId = roomParam;
-                
+                roomRef = db.collection("rooms").doc(`room_${roomParam}`);
+
+                // 👑 只有網址指名 host 的人才擁有房主權限
                 if (roleParam === 'host') {
                     window.gameState.role = 'host';
                     document.getElementById('host-panel').style.display = 'block'; 
                 }
 
+                // 切換大廳與戰場 UI
                 document.getElementById('lobby-section').style.display = 'none';
                 document.getElementById('battle-section').style.display = 'flex';
                 
@@ -231,8 +236,13 @@
                 roomDisplay.innerText = `房間號碼：${roomParam} (${window.gameState.role === 'host' ? '👑 房主' : '👥 成員'})`;
                 roomDisplay.style.display = 'block';
 
-                roomRef = db.collection("rooms").doc(`room_${roomParam}`);
-                startListening();
+                // ✨【終極穩定點】：進來時，不論是誰，先用 safe-merge 確保雲端絕對有這個基礎欄位，絕對不卡死！
+                roomRef.set({
+                    roomId: roomParam
+                }, { merge: true }).then(() => {
+                    // 確保欄位初始化存在後，才開始監聽，徹底擺脫安全規則拒絕存取的 Bug！
+                    startListening();
+                });
             }
         }
 
@@ -248,14 +258,12 @@
             if (window.gameState.role !== 'host') return;
             const newColorMap = generateColors(size);
             
-            // 💡【新核心機制】：上傳時順便帶一個精準到毫秒的時間戳記 (updatedAt)
-            // 這樣每次房主點擊，資料內容必定會發生實質改變，強迫所有手機立刻跟雲端對齊
             roomRef.set({
                 size: size,
                 colorMap: newColorMap,
                 targetColor: '#ccc',
                 updatedAt: Date.now() 
-            }).catch(err => console.error("上傳失敗：", err));
+            }, { merge: true }).catch(err => console.error("上傳失敗：", err));
         };
 
         function renderGridStructure() {
@@ -276,4 +284,52 @@
             window.gameState.colorMap.forEach((color) => {
                 const cell = document.createElement('div');
                 cell.className = 'cell';
-                cell.style.backgroundColor = color
+                cell.style.backgroundColor = color;
+
+                cell.addEventListener('click', () => {
+                    if (window.gameState.role === 'host') {
+                        roomRef.update({ 
+                            targetColor: color,
+                            updatedAt: Date.now()
+                        });
+                    } else {
+                        if (color === window.gameState.targetColor) {
+                            alert("🎉 太強了！你按對顏色了！");
+                        }
+                    }
+                });
+
+                gridContainer.appendChild(cell);
+            });
+        }
+
+        function startListening() {
+            roomRef.onSnapshot((snapshot) => {
+                if (snapshot.exists) {
+                    const data = snapshot.data();
+                    
+                    // 如果這是一個全新建立的空房間，且我是房主，主動幫它塞預設 5x5 地圖
+                    if (data.size === undefined && window.gameState.role === 'host') {
+                        window.changeGridSize(5);
+                        return;
+                    }
+
+                    // 如果資料齊全，渲染遊戲
+                    if (data.size && data.colorMap) {
+                        window.gameState.size = data.size;
+                        window.gameState.colorMap = data.colorMap;
+                        window.gameState.targetColor = data.targetColor || '#ccc';
+                        
+                        renderGridStructure(); 
+                        document.getElementById('target-color-box').style.backgroundColor = window.gameState.targetColor;
+                    }
+                }
+            }, (error) => {
+                console.error("監聽失敗：", error);
+            });
+        }
+
+        initRoomCheck();
+    </script>
+</body>
+</html>
