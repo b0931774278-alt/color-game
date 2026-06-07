@@ -89,8 +89,8 @@
             border-radius: 10px;
             border: 2px solid #fff;
             background-color: #ccc;
+            transition: background-color 0.05s ease; /* 極速變色 */
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-            transition: background-color 0.1s ease; /* 變色平滑一點 */
         }
 
         #grid-container {
@@ -108,7 +108,7 @@
         .cell {
             border-radius: 8px; 
             cursor: pointer;
-            transition: transform 0.1s, filter 0.1s;
+            transition: transform 0.05s;
             box-shadow: inset 0 0 10px rgba(0,0,0,0.2);
         }
 
@@ -184,7 +184,7 @@
         const db = firebase.firestore();
         
         let roomRef = null;
-        let isClicking = false; // 防連點鎖鎖
+        let lastRenderedSize = 0; // 記錄上一次畫的格子大小，避免重畫
         
         const colorPalette = [
             '#FF5733', '#33FF57', '#3357FF', '#F3FF33', '#FF33F3', 
@@ -253,39 +253,34 @@
             });
         };
 
-        function renderGame() {
+        // 🧠 核心效能優化：只有當地圖真的需要改變時，才渲染大盤
+        function renderGridStructure() {
+            const size = window.gameState.size;
+            
+            // 防呆防卡頓：如果地圖大小跟上一次一樣，地圖本身絕對不重畫！
+            if (size === lastRenderedSize && document.getElementsByClassName('cell').length > 0) return;
+            
+            lastRenderedSize = size;
             const gridContainer = document.getElementById('grid-container');
             if(!gridContainer) return;
             gridContainer.innerHTML = ''; 
 
-            const size = window.gameState.size;
             gridContainer.style.gridTemplateColumns = `repeat(${size}, 1fr)`;
             gridContainer.style.gridTemplateRows = `repeat(${size}, 1fr)`;
 
             if (!window.gameState.colorMap || window.gameState.colorMap.length === 0) return;
 
-            window.gameState.colorMap.forEach((color, index) => {
+            window.gameState.colorMap.forEach((color) => {
                 const cell = document.createElement('div');
                 cell.className = 'cell';
                 cell.style.backgroundColor = color;
 
-                cell.addEventListener('click', async () => {
+                cell.addEventListener('click', () => {
                     if (window.gameState.role === 'host') {
-                        // 🔐 防抖限制：如果前一次點擊還在傳輸，直接擋掉，避免抓到舊資料
-                        if (isClicking) return;
-                        isClicking = true;
-
-                        // ✨ 關鍵改動：先強制更新雲端，等雲端完成，確保下一動抓到的永遠是最新的
-                        try {
-                            await roomRef.update({ targetColor: color });
-                        } catch (e) {
-                            console.error(e);
-                        } finally {
-                            // 延遲一小段時間解鎖，確保通訊完成
-                            setTimeout(() => { isClicking = false; }, 50);
-                        }
+                        // 房主點擊：極速寫入，完全不卡
+                        roomRef.update({ targetColor: color });
                     } else {
-                        // 成員點擊邏輯：直接抓取當下 gameState 裡最即時同步過來的顏色
+                        // 成員點擊：直接跟最即時的狀態比對
                         if (color === window.gameState.targetColor) {
                             alert("🎉 太強了！你按對顏色了！");
                         }
@@ -294,22 +289,21 @@
 
                 gridContainer.appendChild(cell);
             });
-
-            // 確保目標顏色顯示盒子的色塊更新
-            document.getElementById('target-color-box').style.backgroundColor = window.gameState.targetColor;
         }
 
         function startListening() {
-            // 📡 監聽設定：強制排除本地快取的干擾
-            roomRef.onSnapshot({ includeMetadataChanges: false }, (snapshot) => {
+            roomRef.onSnapshot((snapshot) => {
                 if (snapshot.exists) {
                     const data = snapshot.data();
                     window.gameState.size = data.size;
                     window.gameState.colorMap = data.colorMap;
                     window.gameState.targetColor = data.targetColor;
                     
-                    // 拿到新資料才一口氣渲染畫面，解決「點 A 秀 B」的殘影 Bug
-                    renderGame(); 
+                    // 1. 檢查並繪製網格（如果大小沒變，這裡會直接跳過不耗效能）
+                    renderGridStructure(); 
+                    
+                    // 2. ⚡ 只單獨去修改上方小方塊的顏色，這是網頁最省力、最秒速的改法
+                    document.getElementById('target-color-box').style.backgroundColor = window.gameState.targetColor;
                 } else {
                     if (window.gameState.role === 'host') {
                         window.changeGridSize(5);
