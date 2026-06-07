@@ -24,9 +24,8 @@
 
         #game-container {
             width: 100%;
-            /* ⚡ 這裡拉大最大寬度，讓大螢幕也能有大格局 */
-            max-width: 800px; 
-            padding: 12px;
+            max-width: 900px; /* 電腦版外框再放大 */
+            padding: 16px;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
@@ -34,27 +33,29 @@
         }
 
         h1 {
-            font-size: 26px;
-            margin: 8px 0;
+            font-size: 28px;
+            margin: 12px 0;
             text-align: center;
+            letter-spacing: 2px;
         }
 
         .room-info {
             font-size: 14px;
             color: #aaa;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
             background-color: #222;
-            padding: 6px 12px;
+            padding: 6px 16px;
             border-radius: 20px;
         }
 
         .control-panel {
             display: none; 
             width: 100%;
+            max-width: 750px;
             background-color: #1e1e1e;
-            padding: 12px;
+            padding: 14px;
             border-radius: 12px;
-            margin-bottom: 12px;
+            margin-bottom: 16px;
             box-sizing: border-box;
             text-align: center;
             border: 1px solid #a2b;
@@ -64,13 +65,13 @@
             background-color: #333;
             color: white;
             border: none;
-            padding: 10px 16px;
-            margin: 4px;
-            border-radius: 8px;
-            font-size: 15px;
+            padding: 12px 20px;
+            margin: 6px;
+            border-radius: 10px;
+            font-size: 16px;
             font-weight: bold;
             cursor: pointer;
-            transition: background-color 0.2s;
+            transition: background-color 0.2s, transform 0.05s;
         }
         button:active {
             transform: scale(0.95);
@@ -80,66 +81,67 @@
             display: flex;
             align-items: center;
             gap: 12px;
-            margin-bottom: 12px;
-            font-size: 18px;
+            margin-bottom: 16px;
+            font-size: 20px;
             font-weight: bold;
         }
 
         #target-color-box {
-            width: 50px;
-            height: 50px;
-            border-radius: 10px;
+            width: 55px;
+            height: 55px;
+            border-radius: 12px;
             border: 2px solid #fff;
             background-color: #ccc;
             transition: background-color 0.05s ease;
-            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4);
         }
 
-        /* ⚡ 這是最關鍵的大改動位置！ */
+        /* ⚡⚡⚡ 這裡幫你把間隔拉大、格子也開到最大 ⚡⚡⚡ */
         #grid-container {
             display: grid;
-            gap: 6px;             /* 稍微縮小格子間距，把空間留給格子本身 */
+            gap: 16px;            /* 🌟 顏色與顏色的間隔大大拉開！ */
             width: 100%; 
-            max-width: 650px;     /* 電腦畫面的上限拉大 */
-            aspect-ratio: 1 / 1;  /* 嚴格保持正方形 */
+            max-width: 750px;     /* 🌟 電腦畫面的大盤極限直接拉到 750px，變超大顆 */
+            aspect-ratio: 1 / 1;  /* 保持完美正方形 */
             background-color: #1e1e1e;
-            padding: 8px;         /* 縮小內邊距，格子可以變得更大 */
-            border-radius: 16px;
+            padding: 16px;        /* 大盤四周留白也加大，更有質感 */
+            border-radius: 20px;
             box-sizing: border-box;
-            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6);
         }
 
         .cell {
-            border-radius: 10px;  /* 圓角稍微加大，大格子看起來質感更好 */
+            border-radius: 14px;  /* 🌟 配合大格子，圓角也加大，看起來圓潤舒適 */
             cursor: pointer;
-            transition: transform 0.05s;
-            box-shadow: inset 0 0 8px rgba(0,0,0,0.2);
+            transition: transform 0.05s, filter 0.05s;
+            box-shadow: inset 0 0 12px rgba(0,0,0,0.3);
         }
 
         .cell:active {
-            transform: scale(0.94);
-            filter: brightness(0.8);
+            transform: scale(0.93); /* 按下去的縮放回饋更明顯 */
+            filter: brightness(0.7);
         }
 
         .lobby-panel {
             width: 100%;
             max-width: 450px;
             background-color: #1e1e1e;
-            padding: 20px;
+            padding: 24px;
             border-radius: 16px;
             text-align: center;
             box-sizing: border-box;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
         }
         .lobby-input {
             width: 80%;
-            padding: 10px;
-            font-size: 16px;
-            border-radius: 8px;
+            padding: 12px;
+            font-size: 18px;
+            border-radius: 10px;
             border: 1px solid #444;
             background-color: #121212;
             color: white;
             text-align: center;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
         }
     </style>
 </head>
@@ -150,17 +152,17 @@
         <div id="room-display" class="room-info" style="display: none;"></div>
 
         <div id="lobby-section" class="lobby-panel">
-            <p>請輸入房間號碼（例如: 1）：</p>
+            <p style="font-size: 18px; margin-top: 0;">請輸入房間號碼（例如: 1）：</p>
             <input type="number" id="room-input" class="lobby-input" placeholder="房號數字" min="1" value="1"><br>
             
-            <button onclick="enterRoom('host')" style="background-color: #a2b; padding: 12px 16px; margin-bottom: 10px; width: 85%;">👑 我是房主（建立/控制房間）</button>
+            <button onclick="enterRoom('host')" style="background-color: #a2b; padding: 14px 16px; margin-bottom: 12px; width: 85%;">👑 我是房主（建立/控制房間）</button>
             <br>
-            <button onclick="enterRoom('player')" style="background-color: #2b8; padding: 12px 16px; width: 85%;">👥 我是成員（加入房間對決）</button>
+            <button onclick="enterRoom('player')" style="background-color: #2b8; padding: 14px 16px; width: 85%;">👥 我是成員（加入房間對決）</button>
         </div>
 
         <div id="battle-section" style="display: none; width: 100%; flex-direction: column; align-items: center;">
             <div id="host-panel" class="control-panel">
-                <span style="color: #a2b; font-weight: bold; display: block; margin-bottom: 5px;">👑 房主控制台</span>
+                <span style="color: #a2b; font-weight: bold; display: block; margin-bottom: 8px; font-size: 16px;">👑 房主控制台</span>
                 <button onclick="changeGridSize(5)">5 x 5</button>
                 <button onclick="changeGridSize(7)">7 x 7</button>
                 <button onclick="changeGridSize(9)">9 x 9</button>
