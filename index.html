@@ -89,7 +89,7 @@
             border-radius: 10px;
             border: 2px solid #fff;
             background-color: #ccc;
-            transition: background-color 0.05s ease; /* 極速變色 */
+            transition: background-color 0.05s ease;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
         }
 
@@ -183,8 +183,11 @@
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         
+        // 🚨 【核心 Bug 修復點】：強制把快取設定為 0，完全停用本機暫存，逼它只走純網路！
+        db.settings({ cacheSizeBytes: 0 });
+        
         let roomRef = null;
-        let lastRenderedSize = 0; // 記錄上一次畫的格子大小，避免重畫
+        let lastRenderedSize = 0; 
         
         const colorPalette = [
             '#FF5733', '#33FF57', '#3357FF', '#F3FF33', '#FF33F3', 
@@ -253,11 +256,9 @@
             });
         };
 
-        // 🧠 核心效能優化：只有當地圖真的需要改變時，才渲染大盤
         function renderGridStructure() {
             const size = window.gameState.size;
             
-            // 防呆防卡頓：如果地圖大小跟上一次一樣，地圖本身絕對不重畫！
             if (size === lastRenderedSize && document.getElementsByClassName('cell').length > 0) return;
             
             lastRenderedSize = size;
@@ -277,10 +278,8 @@
 
                 cell.addEventListener('click', () => {
                     if (window.gameState.role === 'host') {
-                        // 房主點擊：極速寫入，完全不卡
                         roomRef.update({ targetColor: color });
                     } else {
-                        // 成員點擊：直接跟最即時的狀態比對
                         if (color === window.gameState.targetColor) {
                             alert("🎉 太強了！你按對顏色了！");
                         }
@@ -292,17 +291,18 @@
         }
 
         function startListening() {
-            roomRef.onSnapshot((snapshot) => {
+            // 📡 增加 metadataChanges 的過濾，只在雲端資料庫百分之百確認修改後，才觸發更新
+            roomRef.onSnapshot({ includeMetadataChanges: false }, (snapshot) => {
+                // 🛑 防呆：如果這一動來自本地尚未傳成功的快取（hasPendingWrites），死都不吃，直接擋掉！
+                if (snapshot.metadata.hasPendingWrites) return;
+
                 if (snapshot.exists) {
                     const data = snapshot.data();
                     window.gameState.size = data.size;
                     window.gameState.colorMap = data.colorMap;
                     window.gameState.targetColor = data.targetColor;
                     
-                    // 1. 檢查並繪製網格（如果大小沒變，這裡會直接跳過不耗效能）
                     renderGridStructure(); 
-                    
-                    // 2. ⚡ 只單獨去修改上方小方塊的顏色，這是網頁最省力、最秒速的改法
                     document.getElementById('target-color-box').style.backgroundColor = window.gameState.targetColor;
                 } else {
                     if (window.gameState.role === 'host') {
