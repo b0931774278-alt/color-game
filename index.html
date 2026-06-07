@@ -180,12 +180,16 @@
             measurementId: "G-Q9W172JF6H"
         };
 
-        // 1. 初始化 Firebase
+        // 初始化 Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.firestore();
         
-        // 🚨 徹底關閉本機快取暫存（這招就能完美解決點 A 出 B 的問題，不需要再加別的限制）
-        db.settings({ cacheSizeBytes: 0 });
+        // ✨【終極核心 Bug 修復點】：
+        // 拋棄會卡死網頁的 db.settings，直接調用官方標準的 clearPersistence() 
+        // 這會直接清空所有舊的手機本機暫存快取，強迫它每次開網頁都去跟雲端抓最新顏色！
+        db.clearPersistence().catch((err) => {
+            console.log("快取清除或已被停用：", err.code);
+        });
         
         let roomRef = null;
         let lastRenderedSize = 0; 
@@ -260,7 +264,7 @@
         function renderGridStructure() {
             const size = window.gameState.size;
             
-            // 如果大小沒變，且格子已經存在，就不重複畫大盤（保證多人連線不卡頓）
+            // 地圖大小沒變就絕不重畫 HTML（百人流暢關鍵）
             if (size === lastRenderedSize && document.getElementsByClassName('cell').length > 0) return;
             
             lastRenderedSize = size;
@@ -293,7 +297,6 @@
         }
 
         function startListening() {
-            // 📡 純淨監聽，把剛才卡住人的過濾器拿掉，保證連線暢通
             roomRef.onSnapshot((snapshot) => {
                 if (snapshot.exists) {
                     const data = snapshot.data();
@@ -304,7 +307,6 @@
                     renderGridStructure(); 
                     document.getElementById('target-color-box').style.backgroundColor = window.gameState.targetColor;
                 } else {
-                    // 如果房間是空的，房主自動初始化
                     if (window.gameState.role === 'host') {
                         window.changeGridSize(5);
                     }
