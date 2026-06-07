@@ -47,7 +47,6 @@
             border-radius: 20px;
         }
 
-        /* 房主控制面板（預設隱藏，只有房主網址才會開啟） */
         .control-panel {
             display: none; 
             width: 100%;
@@ -91,6 +90,7 @@
             border: 2px solid #fff;
             background-color: #ccc;
             box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+            transition: background-color 0.1s ease; /* 變色平滑一點 */
         }
 
         #grid-container {
@@ -117,7 +117,6 @@
             filter: brightness(0.8);
         }
 
-        /* 大廳引導區樣式 */
         .lobby-panel {
             width: 100%;
             background-color: #1e1e1e;
@@ -185,52 +184,45 @@
         const db = firebase.firestore();
         
         let roomRef = null;
+        let isClicking = false; // 防連點鎖鎖
+        
         const colorPalette = [
             '#FF5733', '#33FF57', '#3357FF', '#F3FF33', '#FF33F3', 
             '#33FFF0', '#FFA500', '#8A2BE2', '#00FF7F', '#FF1493'
         ];
 
-        // 核心狀態
         window.gameState = {
-            role: 'player', // 預設進來是成員
+            role: 'player', 
             roomId: '',
             size: 5,            
             colorMap: [],       
             targetColor: '#ccc' 
         };
 
-        // 【大廳功能】房主建立房間
         window.createAsHost = function() {
-            const randomRoom = Math.floor(Math.random() * 900) + 100; // 隨機生出 100~999 號碼
-            // 跳轉網址加上 ?room=號碼&role=host
+            const randomRoom = Math.floor(Math.random() * 900) + 100; 
             window.location.href = window.location.pathname + `?room=${randomRoom}&role=host`;
         };
 
-        // 【大廳功能】成員輸入號碼加入房間
         window.joinAsPlayer = function() {
             const num = document.getElementById('room-input').value;
             if(!num) { alert('請輸入房間號碼！'); return; }
-            // 跳轉網址只帶 ?room=號碼
             window.location.href = window.location.pathname + `?room=${num}`;
         };
 
-        // 🔍 【網址分析器】一進網頁立刻判斷去哪裡
         function initRoomCheck() {
             const urlParams = new URLSearchParams(window.location.search);
             const roomParam = urlParams.get('room');
             const roleParam = urlParams.get('role');
 
             if (roomParam) {
-                // 有帶房間號碼，開打！
                 window.gameState.roomId = roomParam;
                 
-                // 只有網址指名 role=host 才是房主，其餘一網打盡全是 player
                 if (roleParam === 'host') {
                     window.gameState.role = 'host';
-                    document.getElementById('host-panel').style.display = 'block'; // 秀出控制台
+                    document.getElementById('host-panel').style.display = 'block'; 
                 }
 
-                // UI 切換
                 document.getElementById('lobby-section').style.display = 'none';
                 document.getElementById('battle-section').style.display = 'flex';
                 
@@ -238,7 +230,6 @@
                 roomDisplay.innerText = `房間號碼：${roomParam} (${window.gameState.role === 'host' ? '👑 房主' : '👥 成員'})`;
                 roomDisplay.style.display = 'block';
 
-                // 連線到對應的 Firebase 房間節點
                 roomRef = db.collection("rooms").doc(`room_${roomParam}`);
                 startListening();
             }
@@ -278,10 +269,23 @@
                 cell.className = 'cell';
                 cell.style.backgroundColor = color;
 
-                cell.addEventListener('click', () => {
+                cell.addEventListener('click', async () => {
                     if (window.gameState.role === 'host') {
-                        roomRef.update({ targetColor: color });
+                        // 🔐 防抖限制：如果前一次點擊還在傳輸，直接擋掉，避免抓到舊資料
+                        if (isClicking) return;
+                        isClicking = true;
+
+                        // ✨ 關鍵改動：先強制更新雲端，等雲端完成，確保下一動抓到的永遠是最新的
+                        try {
+                            await roomRef.update({ targetColor: color });
+                        } catch (e) {
+                            console.error(e);
+                        } finally {
+                            // 延遲一小段時間解鎖，確保通訊完成
+                            setTimeout(() => { isClicking = false; }, 50);
+                        }
                     } else {
+                        // 成員點擊邏輯：直接抓取當下 gameState 裡最即時同步過來的顏色
                         if (color === window.gameState.targetColor) {
                             alert("🎉 太強了！你按對顏色了！");
                         }
@@ -291,16 +295,20 @@
                 gridContainer.appendChild(cell);
             });
 
+            // 確保目標顏色顯示盒子的色塊更新
             document.getElementById('target-color-box').style.backgroundColor = window.gameState.targetColor;
         }
 
         function startListening() {
-            roomRef.onSnapshot((snapshot) => {
+            // 📡 監聽設定：強制排除本地快取的干擾
+            roomRef.onSnapshot({ includeMetadataChanges: false }, (snapshot) => {
                 if (snapshot.exists) {
                     const data = snapshot.data();
                     window.gameState.size = data.size;
                     window.gameState.colorMap = data.colorMap;
                     window.gameState.targetColor = data.targetColor;
+                    
+                    // 拿到新資料才一口氣渲染畫面，解決「點 A 秀 B」的殘影 Bug
                     renderGame(); 
                 } else {
                     if (window.gameState.role === 'host') {
@@ -310,11 +318,7 @@
             });
         }
 
-        // 執行網址檢查
         initRoomCheck();
-    </script>
-</body>
-</html>
     </script>
 </body>
 </html>
