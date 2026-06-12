@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>遊戲大合集-終極修復版</title>
+    <title>遊戲大合集-十人穩定版</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
@@ -193,13 +193,14 @@
         }
         .players-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-            gap: 16px;
+            /* 自動填滿，並且縮小卡片寬度，確保 10 個人以上能完美整齊排列 */
+            grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            gap: 12px;
         }
         .player-card {
             background-color: #262626;
             border-radius: 12px;
-            padding: 10px;
+            padding: 8px;
             text-align: center;
             border: 2px solid #444;
             cursor: pointer;
@@ -216,16 +217,16 @@
         }
         .mini-grid {
             display: grid;
-            gap: 3px;
-            margin: 8px auto 0 auto;
-            width: 80px;
-            height: 80px;
+            gap: 2px;
+            margin: 6px auto 0 auto;
+            width: 70px;
+            height: 70px;
             background-color: #111;
-            padding: 3px;
+            padding: 2px;
             border-radius: 6px;
         }
         .mini-cell {
-            border-radius: 2px;
+            border-radius: 1px;
             background-color: #444;
         }
         .mini-cell.mini-cleared {
@@ -302,11 +303,9 @@
             <button id="btn-number-mode" class="mode-btn" onclick="switchGameMode('number')">🔢 數字競速</button>
         </div>
 
-        <!-- ==================== 1. 色彩對決遊戲區 ==================== -->
         <div id="color-game-section" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
             <div id="room-display" class="room-info" style="display: none;"></div>
 
-            <!-- 大廳 -->
             <div id="lobby-section" class="lobby-panel">
                 <p style="font-size: 16px; margin-top: 0; color:#aaa;">請輸入你的名字：</p>
                 <input type="text" id="name-input" class="lobby-input" placeholder="玩家暱稱" value="玩家"><br>
@@ -318,10 +317,8 @@
                 <button onclick="enterRoom('player')" style="background-color: #2b8; padding: 14px 16px; width: 85%;">👥 我是成員（加入格子戰場）</button>
             </div>
 
-            <!-- 戰場 -->
             <div id="battle-section" style="display: none; width: 100%; flex-direction: column; align-items: center;">
                 
-                <!-- 房主控制台 -->
                 <div id="host-panel" class="control-panel">
                     <span style="color: #a2b; font-weight: bold; display: block; margin-bottom: 8px; font-size: 16px;">👑 房主控制台</span>
                     
@@ -337,7 +334,6 @@
                         <button onclick="changeGridSize(9)">9 x 9 重製大盤</button>
                     </div>
 
-                    <!-- 🎨 房主自訂題目選色器 -->
                     <div style="background: #252525; padding: 10px; border-radius: 8px; display: inline-block; border: 1px dashed #555;">
                         <label for="host-color-picker" style="font-size: 14px; color: #ffeb3b; font-weight: bold; cursor: pointer;">
                             🎨 房主點此手動指定顏色：
@@ -346,17 +342,14 @@
                     </div>
                 </div>
 
-                <!-- 目標顏色大框 -->
                 <div class="target-section">
                     <span id="target-title-text">目標顏色 (單格盲找)</span>
                     <div id="target-color-box" onclick="hostClickRandomColor()"></div>
                     <div id="player-remain-count" style="display: none; font-size: 16px; color: #ffeb3b; margin-top: 8px;">剩餘目標數量: -- 格</div>
                 </div>
 
-                <!-- 【成員專屬】大遊戲格子 -->
                 <div id="grid-container"></div>
 
-                <!-- 【房主專屬】成員賽況監控面板 -->
                 <div id="host-monitor-section" style="display: none;">
                     <div class="monitor-title">🏁 房間成員即時賽況</div>
                     <div style="text-align: center; color: #888; font-size: 12px; margin-bottom: 10px;">💡 提示：長按某位成員的畫面 1 秒，即可將他踢出房間！</div>
@@ -366,7 +359,6 @@
             </div>
         </div>
 
-        <!-- ==================== 2. 數字競速遊戲區 ==================== -->
         <div id="number-game-section" style="width: 100%; display: none; flex-direction: column; align-items: center;">
             <div class="score-board">
                 <div>目標數字: <span id="next-num" style="color: #ffeb3b; font-weight: bold; font-size: 22px;">1</span></div>
@@ -400,7 +392,8 @@
         let hasWonCurrentRound = false; 
         let playerClearedIndices = []; 
         let lastClickedIndexLocal = -1; 
-        let localRoundId = ""; // 用來真正鎖定目前回合
+        let localRoundId = ""; 
+        let heartbeatInterval = null; // 成員定時回報活著的定時器
 
         let uploadTimeout = null;
         let pendingUploadData = null;
@@ -486,6 +479,9 @@
                     document.getElementById('player-remain-count').style.display = 'block';
                     
                     window.addEventListener('beforeunload', removeMeFromRoom);
+                    
+                    // ⏱️ 開啟每 3 秒心跳機制，確保成員即使不點格子，名字也絕對不會消失
+                    startHeartbeat();
                 }
                 
                 const roomDisplay = document.getElementById('room-display');
@@ -498,8 +494,21 @@
             }
         }
 
+        function startHeartbeat() {
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            heartbeatInterval = setInterval(() => {
+                if (roomRef && window.gameState.role === 'player') {
+                    roomRef.collection("players").doc(window.gameState.playerName).set({
+                        name: window.gameState.playerName,
+                        lastActive: Date.now()
+                    }, { merge: true });
+                }
+            }, 3000); // 3秒主動刷新一次狀態
+        }
+
         function removeMeFromRoom() {
             if (roomRef && window.gameState.role === 'player') {
+                clearInterval(heartbeatInterval);
                 roomRef.collection("players").doc(window.gameState.playerName).delete();
             }
         }
@@ -595,7 +604,6 @@
         }
 
         function throttledFirebaseUpload(data) {
-            // 🔒 雙重鎖死：上傳任何資料包時，絕對、強制塞入當前自訂玩家暱稱
             const payload = {
                 ...data,
                 name: window.gameState.playerName,
@@ -610,7 +618,7 @@
                     }
                     uploadTimeout = null;
                     pendingUploadData = null;
-                }, 60); // 調快上傳速度以提升即時感
+                }, 50); 
             }
         }
 
@@ -643,7 +651,6 @@
                 cell.className = 'cell';
                 cell.style.backgroundColor = color;
 
-                // 地鼠模式：如果本機記錄已點過，直接變黑
                 if (window.gameState.subMode === 'whack' && playerClearedIndices.includes(index)) {
                     cell.classList.add('cleared');
                 }
@@ -673,7 +680,6 @@
                         });
                     } 
                     else {
-                        // 🐹 地鼠競速模式：點擊對的顏色且沒被清除過
                         if (isRightColor && !playerClearedIndices.includes(index)) {
                             playerClearedIndices.push(index);
                             cell.classList.add('cleared'); 
@@ -737,7 +743,6 @@
                             titleTag.innerText = "目標顏色 (單格盲找對決)";
                         }
                         
-                        // 🔔 只有當房主「出新題目(roundId改變)」時，才洗掉本機狀態與重設
                         if (data.roundId !== localRoundId) {
                             localRoundId = data.roundId;
                             hasWonCurrentRound = false; 
@@ -746,7 +751,6 @@
                             
                             if (window.gameState.role === 'player') {
                                 const totalTarget = countTotalTargetColor(window.gameState.targetColor);
-                                // 🔒 初始化上傳也強制寫入自訂名字
                                 roomRef.collection("players").doc(window.gameState.playerName).set({
                                     name: window.gameState.playerName,
                                     clearedList: [],
@@ -764,17 +768,17 @@
                 }
             });
 
+            // 👥 改良版成員監聽器：全選拉出，不執行任何拉鋸的刪除操作，保證 10 人以上絕對顯示
             roomRef.collection("players").onSnapshot((snapshot) => {
                 const playersData = [];
+                const now = Date.now();
                 snapshot.forEach((doc) => {
                     const p = doc.data();
-                    // 確保讀出來的資料也有名字，如果沒有就拿它的 document 欄位頂替（加倍保險）
                     if (!p.name) p.name = doc.id; 
-
-                    if (Date.now() - p.lastActive < 15000) { 
+                    
+                    // 寬限期拉長到 30 秒沒訊號才算離線（避免有人切換 App 通話或網路瞬斷）
+                    if (now - p.lastActive < 30000) { 
                         playersData.push(p);
-                    } else {
-                        roomRef.collection("players").doc(p.name).delete();
                     }
                 });
                 if (window.gameState.role === 'host') {
@@ -830,18 +834,21 @@
 
                 const nameTag = document.createElement('div');
                 nameTag.style.fontWeight = 'bold';
-                nameTag.style.fontSize = '14px';
+                nameTag.style.fontSize = '13px'; // 字體微調，更適合多人併排
                 nameTag.style.color = player.isSuccess ? '#00e676' : '#fff';
+                nameTag.style.whiteSpace = 'nowrap';
+                nameTag.style.overflow = 'hidden';
+                nameTag.style.textOverflow = 'ellipsis';
                 
                 if (window.gameState.subMode === 'whack') {
                     if (player.isSuccess) {
-                        nameTag.innerText = `🏆 ${finalName} [全滅]`;
+                        nameTag.innerText = `🏆 ${finalName}`;
                     } else {
-                        const r = (player.remainCount === 999 || player.remainCount === undefined) ? '計算中' : `剩 ${player.remainCount} 格`;
-                        nameTag.innerText = `${finalName} [${r}]`;
+                        const r = (player.remainCount === 999 || player.remainCount === undefined) ? '...' : `${player.remainCount}格`;
+                        nameTag.innerText = `${finalName}(${r})`;
                     }
                 } else {
-                    nameTag.innerText = `${finalName} [${player.isSuccess ? '✅ 找到了!' : '❌ 尋找中'}]`;
+                    nameTag.innerText = `${finalName} [${player.isSuccess ? '✅' : '❌'}]`;
                 }
                 card.appendChild(nameTag);
 
