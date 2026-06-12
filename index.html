@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>遊戲大合集-房主全權掌控版</title>
+    <title>遊戲大合集-終極修復版</title>
     
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
@@ -203,7 +203,7 @@
             text-align: center;
             border: 2px solid #444;
             cursor: pointer;
-            user-select: none; /* 防止手機長按選取文字 */
+            user-select: none; 
             -webkit-user-select: none;
             transition: background-color 0.2s;
         }
@@ -302,9 +302,11 @@
             <button id="btn-number-mode" class="mode-btn" onclick="switchGameMode('number')">🔢 數字競速</button>
         </div>
 
+        <!-- ==================== 1. 色彩對決遊戲區 ==================== -->
         <div id="color-game-section" style="width: 100%; display: flex; flex-direction: column; align-items: center;">
             <div id="room-display" class="room-info" style="display: none;"></div>
 
+            <!-- 大廳 -->
             <div id="lobby-section" class="lobby-panel">
                 <p style="font-size: 16px; margin-top: 0; color:#aaa;">請輸入你的名字：</p>
                 <input type="text" id="name-input" class="lobby-input" placeholder="玩家暱稱" value="玩家"><br>
@@ -316,8 +318,10 @@
                 <button onclick="enterRoom('player')" style="background-color: #2b8; padding: 14px 16px; width: 85%;">👥 我是成員（加入格子戰場）</button>
             </div>
 
+            <!-- 戰場 -->
             <div id="battle-section" style="display: none; width: 100%; flex-direction: column; align-items: center;">
                 
+                <!-- 房主控制台 -->
                 <div id="host-panel" class="control-panel">
                     <span style="color: #a2b; font-weight: bold; display: block; margin-bottom: 8px; font-size: 16px;">👑 房主控制台</span>
                     
@@ -333,6 +337,7 @@
                         <button onclick="changeGridSize(9)">9 x 9 重製大盤</button>
                     </div>
 
+                    <!-- 🎨 房主自訂題目選色器 -->
                     <div style="background: #252525; padding: 10px; border-radius: 8px; display: inline-block; border: 1px dashed #555;">
                         <label for="host-color-picker" style="font-size: 14px; color: #ffeb3b; font-weight: bold; cursor: pointer;">
                             🎨 房主點此手動指定顏色：
@@ -341,14 +346,17 @@
                     </div>
                 </div>
 
+                <!-- 目標顏色大框 -->
                 <div class="target-section">
                     <span id="target-title-text">目標顏色 (單格盲找)</span>
                     <div id="target-color-box" onclick="hostClickRandomColor()"></div>
                     <div id="player-remain-count" style="display: none; font-size: 16px; color: #ffeb3b; margin-top: 8px;">剩餘目標數量: -- 格</div>
                 </div>
 
+                <!-- 【成員專屬】大遊戲格子 -->
                 <div id="grid-container"></div>
 
+                <!-- 【房主專屬】成員賽況監控面板 -->
                 <div id="host-monitor-section" style="display: none;">
                     <div class="monitor-title">🏁 房間成員即時賽況</div>
                     <div style="text-align: center; color: #888; font-size: 12px; margin-bottom: 10px;">💡 提示：長按某位成員的畫面 1 秒，即可將他踢出房間！</div>
@@ -358,6 +366,7 @@
             </div>
         </div>
 
+        <!-- ==================== 2. 數字競速遊戲區 ==================== -->
         <div id="number-game-section" style="width: 100%; display: none; flex-direction: column; align-items: center;">
             <div class="score-board">
                 <div>目標數字: <span id="next-num" style="color: #ffeb3b; font-weight: bold; font-size: 22px;">1</span></div>
@@ -388,16 +397,14 @@
         const db = firebase.firestore();
         
         let roomRef = null;
-        let lastRenderedSize = 0; 
         let hasWonCurrentRound = false; 
-        
         let playerClearedIndices = []; 
         let lastClickedIndexLocal = -1; 
+        let localRoundId = ""; // 用來真正鎖定目前回合
 
         let uploadTimeout = null;
         let pendingUploadData = null;
 
-        // 🎨 擴充為 20 種豐富飽和的高對比色盤！
         const colorPalette = [
             '#FF5733', '#33FF57', '#3357FF', '#F3FF33', '#FF33F3', 
             '#33FFF0', '#FFA500', '#8A2BE2', '#00FF7F', '#FF1493',
@@ -478,7 +485,6 @@
                     document.getElementById('host-monitor-section').style.display = 'none';
                     document.getElementById('player-remain-count').style.display = 'block';
                     
-                    // 👥 偵測成員離線：當網頁關閉或上一頁時，立刻刪除紀錄
                     window.addEventListener('beforeunload', removeMeFromRoom);
                 }
                 
@@ -492,10 +498,8 @@
             }
         }
 
-        // 離開房間的抹除函數
         function removeMeFromRoom() {
             if (roomRef && window.gameState.role === 'player') {
-                // 直接從 Firebase 刪除這個成員的文件，免除留滯
                 roomRef.collection("players").doc(window.gameState.playerName).delete();
             }
         }
@@ -541,7 +545,6 @@
             });
         };
 
-        // 隨機出題
         window.hostClickRandomColor = function() {
             if (window.gameState.role !== 'host') return;
             if (!window.gameState.colorMap || window.gameState.colorMap.length === 0) {
@@ -553,15 +556,13 @@
             publishNewTargetColor(randomColor);
         };
 
-        // 🎨 房主手動選色器出題
         window.hostPickCustomColor = function(hexColor) {
             if (window.gameState.role !== 'host') return;
             triggerVibration(50);
             
-            // 檢查大盤裡到底有沒有這個顏色，沒有的話強行把最後一格改成這個色，確保有解！
             if (!window.gameState.colorMap.includes(hexColor.toUpperCase()) && !window.gameState.colorMap.includes(hexColor.toLowerCase())) {
                 const updatedMap = [...window.gameState.colorMap];
-                updatedMap[updatedMap.length - 1] = hexColor; // 強制注入一格
+                updatedMap[updatedMap.length - 1] = hexColor; 
                 roomRef.update({ colorMap: updatedMap });
                 window.gameState.colorMap = updatedMap;
             }
@@ -586,7 +587,7 @@
 
         function countTotalTargetColor(color) {
             let count = 0;
-            // 支援大小寫不一致的微調比對
+            if (!window.gameState.colorMap || !color) return 0;
             window.gameState.colorMap.forEach(c => { 
                 if(c.toLowerCase() === color.toLowerCase()) count++; 
             });
@@ -594,7 +595,14 @@
         }
 
         function throttledFirebaseUpload(data) {
-            pendingUploadData = data;
+            // 🔒 雙重鎖死：上傳任何資料包時，絕對、強制塞入當前自訂玩家暱稱
+            const payload = {
+                ...data,
+                name: window.gameState.playerName,
+                lastActive: Date.now()
+            };
+            
+            pendingUploadData = payload;
             if (!uploadTimeout) {
                 uploadTimeout = setTimeout(() => {
                     if (roomRef && pendingUploadData) {
@@ -602,7 +610,7 @@
                     }
                     uploadTimeout = null;
                     pendingUploadData = null;
-                }, 150); 
+                }, 60); // 調快上傳速度以提升即時感
             }
         }
 
@@ -635,6 +643,7 @@
                 cell.className = 'cell';
                 cell.style.backgroundColor = color;
 
+                // 地鼠模式：如果本機記錄已點過，直接變黑
                 if (window.gameState.subMode === 'whack' && playerClearedIndices.includes(index)) {
                     cell.classList.add('cleared');
                 }
@@ -659,13 +668,12 @@
                         }
 
                         throttledFirebaseUpload({
-                            name: window.gameState.playerName,
                             clickedIndex: index,
-                            isSuccess: isRightColor,
-                            lastActive: Date.now()
+                            isSuccess: isRightColor
                         });
                     } 
                     else {
+                        // 🐹 地鼠競速模式：點擊對的顏色且沒被清除過
                         if (isRightColor && !playerClearedIndices.includes(index)) {
                             playerClearedIndices.push(index);
                             cell.classList.add('cleared'); 
@@ -677,11 +685,9 @@
                             const amIWin = (currentRemain === 0);
 
                             throttledFirebaseUpload({
-                                name: window.gameState.playerName,
                                 clearedList: playerClearedIndices,
                                 remainCount: currentRemain,
-                                isSuccess: amIWin,
-                                lastActive: Date.now()
+                                isSuccess: amIWin
                             });
 
                             if (amIWin && !hasWonCurrentRound) {
@@ -700,21 +706,16 @@
         }
 
         function startListening() {
-            let currentRoundId = "";
-            
-            // 監聽主房間
             roomRef.onSnapshot((snapshot) => {
                 if (snapshot.exists) {
                     const data = snapshot.data();
                     
-                    // 🥾 踢人核心判定：如果房主維護了一個被踢名單
                     if (data.kickedPlayers && data.kickedPlayers.includes(window.gameState.playerName)) {
                         triggerVibration([300, 100, 300]);
-                        // 清除離線監聽，防止回傳
                         window.removeEventListener('beforeunload', removeMeFromRoom);
                         document.body.innerHTML = `<div style="text-align:center; margin-top:100px; font-size:24px; color:#ff2a6d; font-weight:bold;">❌ 你已被房主踢出房間！</div>`;
                         setTimeout(() => {
-                            window.location.href = window.location.pathname; // 3秒後強制返回大廳
+                            window.location.href = window.location.pathname; 
                         }, 3000);
                         return;
                     }
@@ -736,14 +737,16 @@
                             titleTag.innerText = "目標顏色 (單格盲找對決)";
                         }
                         
-                        if (data.roundId !== currentRoundId) {
-                            currentRoundId = data.roundId;
+                        // 🔔 只有當房主「出新題目(roundId改變)」時，才洗掉本機狀態與重設
+                        if (data.roundId !== localRoundId) {
+                            localRoundId = data.roundId;
                             hasWonCurrentRound = false; 
                             playerClearedIndices = []; 
                             lastClickedIndexLocal = -1;
                             
                             if (window.gameState.role === 'player') {
                                 const totalTarget = countTotalTargetColor(window.gameState.targetColor);
+                                // 🔒 初始化上傳也強制寫入自訂名字
                                 roomRef.collection("players").doc(window.gameState.playerName).set({
                                     name: window.gameState.playerName,
                                     clearedList: [],
@@ -761,16 +764,16 @@
                 }
             });
 
-            // 監聽成員列表 (加上即時過期幽靈人過濾機制)
             roomRef.collection("players").onSnapshot((snapshot) => {
                 const playersData = [];
                 snapshot.forEach((doc) => {
                     const p = doc.data();
-                    // 雙重保險：如果超過 15 秒沒有呼吸心跳(lastActive) 且不是當前操作者，視為已非自願離線
+                    // 確保讀出來的資料也有名字，如果沒有就拿它的 document 欄位頂替（加倍保險）
+                    if (!p.name) p.name = doc.id; 
+
                     if (Date.now() - p.lastActive < 15000) { 
                         playersData.push(p);
                     } else {
-                        // 自動幫忙清理 Firebase 上的滯留髒資料
                         roomRef.collection("players").doc(p.name).delete();
                     }
                 });
@@ -780,7 +783,6 @@
             });
         }
 
-        // 👑 房主上帝視角：加上長按踢人觸控事件
         function renderHostMonitor(playersList) {
             const monitorGrid = document.getElementById('players-monitor-grid');
             if(!monitorGrid) return;
@@ -798,31 +800,27 @@
             }
 
             playersList.forEach((player) => {
+                const finalName = player.name || "未命名成員";
+
                 const card = document.createElement('div');
                 card.className = `player-card ${player.isSuccess ? 'success' : ''}`;
                 
-                // 🥾 綁定手機/網頁長按踢人邏輯
                 let pressTimer = null;
-
                 const startPress = () => {
                     pressTimer = setTimeout(() => {
-                        triggerVibration([60, 60]); // 長按成功震動提示
-                        const confirmKick = confirm(`🥾 房主威能！確定要將成員 [${player.name}] 踢出房間嗎？`);
+                        triggerVibration([60, 60]); 
+                        const confirmKick = confirm(`🥾 房主威能！確定要將成員 [${finalName}] 踢出房間嗎？`);
                         if (confirmKick) {
-                            // 執行踢人：丟入房間被踢清單並從成員區抹除
                             roomRef.update({
-                                kickedPlayers: firebase.firestore.FieldValue.arrayUnion(player.name)
+                                kickedPlayers: firebase.firestore.FieldValue.arrayUnion(finalName)
                             });
-                            roomRef.collection("players").doc(player.name).delete();
+                            roomRef.collection("players").doc(finalName).delete();
                         }
-                    }, 1000); // 滿 1 秒算長按
+                    }, 1000); 
                 };
 
-                const cancelPress = () => {
-                    clearTimeout(pressTimer);
-                };
+                const cancelPress = () => { clearTimeout(pressTimer); };
 
-                // 相容手機觸控與滑鼠點擊
                 card.addEventListener('mousedown', startPress);
                 card.addEventListener('touchstart', startPress);
                 card.addEventListener('mouseup', cancelPress);
@@ -837,13 +835,13 @@
                 
                 if (window.gameState.subMode === 'whack') {
                     if (player.isSuccess) {
-                        nameTag.innerText = `🏆 ${player.name} [地鼠全滅]`;
+                        nameTag.innerText = `🏆 ${finalName} [全滅]`;
                     } else {
-                        const r = player.remainCount === 999 ? '等待中' : `剩 ${player.remainCount} 格`;
-                        nameTag.innerText = `${player.name} [${r}]`;
+                        const r = (player.remainCount === 999 || player.remainCount === undefined) ? '計算中' : `剩 ${player.remainCount} 格`;
+                        nameTag.innerText = `${finalName} [${r}]`;
                     }
                 } else {
-                    nameTag.innerText = `${player.name} [${player.isSuccess ? '✅ 找到了!' : '❌ 尋找中'}]`;
+                    nameTag.innerText = `${finalName} [${player.isSuccess ? '✅ 找到了!' : '❌ 尋找中'}]`;
                 }
                 card.appendChild(nameTag);
 
@@ -884,7 +882,6 @@
                 monitorGrid.appendChild(card);
             });
         }
-
 
         // ==================== [模式二] 1-25 數字競速邏輯 ====================
         let numGameData = {
